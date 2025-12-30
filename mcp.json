@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "chronica": {
+      "command": "python",
+      "args": [
+        "run_server.py"
+      ],
+      "cwd": "C:\\Dev\\Chronica"
+    }
+  }
+}
+
