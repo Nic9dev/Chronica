@@ -14,4 +14,3 @@ __all__ = [
     "summarize",
     "parse_event_time",
 ]
-

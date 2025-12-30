@@ -1,5 +1,6 @@
 """
 Chronica MCP Server 起動スクリプト
+venv前提: C:\Dev\Chronica\.venv\Scripts\python.exe
 """
 import sys
 from pathlib import Path

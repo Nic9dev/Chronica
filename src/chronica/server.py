@@ -3,7 +3,6 @@ Chronica MCP Server - エントリーポイント
 STDIOで起動
 """
 import asyncio
-import sys
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
@@ -29,10 +28,10 @@ async def main():
     """メインエントリーポイント"""
     server = create_server()
     
-    async with stdio_server() as streams:
+    async with stdio_server() as (read_stream, write_stream):
         await server.run(
-            streams[0],
-            streams[1],
+            read_stream,
+            write_stream,
             server.create_initialization_options()
         )
 

@@ -11,7 +11,6 @@ from .summarize import summarize
 from .timeparse import parse_event_time
 
 
-# グローバルStoreインスタンス（サーバー起動時に初期化）
 _store: Optional[Store] = None
 
 
@@ -188,12 +187,12 @@ def register_tools(server: Server):
     
     @server.call_tool()
     async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
+        import json
         store = get_store()
         
         if name == "chronica.save_entry":
             entry = arguments.get("entry", {})
             
-            # event_time の処理（rawがある場合）
             if "event_time" in entry and isinstance(entry["event_time"], dict):
                 event_time_raw = entry["event_time"].get("raw")
                 if event_time_raw:
@@ -204,46 +203,30 @@ def register_tools(server: Server):
             entry_id = store.save_entry(entry)
             return [types.TextContent(
                 type="text",
-                text=f'{{"entry_id": "{entry_id}"}}'
+                text=json.dumps({"entry_id": entry_id}, ensure_ascii=False)
             )]
         
         elif name == "chronica.search":
-            thread_type = arguments.get("thread_type")
-            kind = arguments.get("kind")
-            tags = arguments.get("tags")
-            project = arguments.get("project")
-            limit = arguments.get("limit", 100)
-            
             entries = store.search(
-                thread_type=thread_type,
-                kind=kind,
-                tags=tags,
-                project=project,
-                limit=limit
+                thread_type=arguments.get("thread_type"),
+                kind=arguments.get("kind"),
+                tags=arguments.get("tags"),
+                project=arguments.get("project"),
+                limit=arguments.get("limit", 100)
             )
-            
-            import json
             return [types.TextContent(
                 type="text",
                 text=json.dumps({"entries": entries}, ensure_ascii=False, indent=2)
             )]
         
         elif name == "chronica.timeline":
-            start_time = arguments.get("start_time")
-            end_time = arguments.get("end_time")
-            thread_type = arguments.get("thread_type")
-            kind = arguments.get("kind")
-            limit = arguments.get("limit", 100)
-            
             entries = store.timeline(
-                start_time=start_time,
-                end_time=end_time,
-                thread_type=thread_type,
-                kind=kind,
-                limit=limit
+                start_time=arguments.get("start_time"),
+                end_time=arguments.get("end_time"),
+                thread_type=arguments.get("thread_type"),
+                kind=arguments.get("kind"),
+                limit=arguments.get("limit", 100)
             )
-            
-            import json
             return [types.TextContent(
                 type="text",
                 text=json.dumps({"entries": entries}, ensure_ascii=False, indent=2)
@@ -254,12 +237,10 @@ def register_tools(server: Server):
             if not thread_type:
                 return [types.TextContent(
                     type="text",
-                    text='{"error": "thread_type is required"}'
+                    text=json.dumps({"error": "thread_type is required"}, ensure_ascii=False)
                 )]
             
             last_seen_time = store.get_last_seen(thread_type)
-            
-            import json
             result = {"last_seen_time": last_seen_time} if last_seen_time else {"last_seen_time": None}
             return [types.TextContent(
                 type="text",
@@ -275,10 +256,9 @@ def register_tools(server: Server):
             if not anchor_time or not thread_type:
                 return [types.TextContent(
                     type="text",
-                    text='{"error": "anchor_time and thread_type are required"}'
+                    text=json.dumps({"error": "anchor_time and thread_type are required"}, ensure_ascii=False)
                 )]
             
-            # last_seen_timeが無ければDBから取得
             if not last_seen_time:
                 last_seen_time = store.get_last_seen(thread_type)
             
@@ -288,8 +268,6 @@ def register_tools(server: Server):
                 last_seen_time=last_seen_time,
                 smalltalk_level=smalltalk_level
             )
-            
-            import json
             return [types.TextContent(
                 type="text",
                 text=json.dumps(opening_pack, ensure_ascii=False, indent=2)
@@ -304,7 +282,7 @@ def register_tools(server: Server):
             if not all([mode, range_start, range_end, thread_type]):
                 return [types.TextContent(
                     type="text",
-                    text='{"error": "mode, range_start, range_end, and thread_type are required"}'
+                    text=json.dumps({"error": "mode, range_start, range_end, and thread_type are required"}, ensure_ascii=False)
                 )]
             
             summary_pack = summarize(
@@ -314,8 +292,6 @@ def register_tools(server: Server):
                 thread_type=thread_type,
                 store=store
             )
-            
-            import json
             return [types.TextContent(
                 type="text",
                 text=json.dumps(summary_pack, ensure_ascii=False, indent=2)
@@ -324,6 +300,5 @@ def register_tools(server: Server):
         else:
             return [types.TextContent(
                 type="text",
-                text=f'{{"error": "Unknown tool: {name}"}}'
+                text=json.dumps({"error": f"Unknown tool: {name}"}, ensure_ascii=False)
             )]
-

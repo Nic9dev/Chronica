@@ -1,6 +1,5 @@
 """
 Opening Pack - compose_opening 実装（v0.1.1）
-通常＝親近感 / プロジェクト＝信頼感 の方向性を安定させる
 """
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -15,37 +14,14 @@ def compose_opening(
     last_seen_time: Optional[str] = None,
     smalltalk_level: str = "normal"
 ) -> Dict[str, Any]:
-    """
-    オープニングパックを生成
-    
-    Args:
-        anchor_time: 基準時刻（ISO文字列、JST、必須）
-        thread_type: スレッドタイプ（normal/project、必須）
-        last_seen_time: 最後に見た時刻（ISO文字列、JST、任意）
-        smalltalk_level: 雑談レベル（always/normal/off、推奨：normal=always, project=off）
-    
-    Returns:
-        {
-            "opening_text": str,
-            "parts": {
-                "greeting": str,
-                "gap": Optional[str],
-                "season": Optional[str]
-            },
-            "meta": {
-                "time_bucket": str,  # morning/afternoon/evening/late
-                "gap_bucket": Optional[str],  # within_2h/within_24h/within_7d/over_7d
-                "season_key": Optional[str]  # winter/spring/summer/autumn
-            }
-        }
-    """
+    """オープニングパックを生成"""
     anchor = datetime.fromisoformat(anchor_time.replace("Z", "+00:00"))
     if anchor.tzinfo is None:
         anchor = anchor.replace(tzinfo=JST)
     else:
         anchor = anchor.astimezone(JST)
     
-    # time_bucket の決定
+    # time_bucket
     hour = anchor.hour
     if 5 <= hour < 12:
         time_bucket = "morning"
@@ -56,20 +32,18 @@ def compose_opening(
     else:
         time_bucket = "late"
     
-    # greeting の生成
+    # greeting
     if thread_type == "normal":
         if time_bucket == "morning":
             greeting = "おはようございます"
         elif time_bucket == "afternoon":
             greeting = "こんにちは"
-        elif time_bucket == "evening":
-            greeting = "こんばんは"
         else:
             greeting = "こんばんは"
-    else:  # project
+    else:
         greeting = "お疲れ様です"
     
-    # gap_bucket の計算
+    # gap_bucket
     gap_bucket = None
     gap_text = None
     if last_seen_time:
@@ -99,7 +73,7 @@ def compose_opening(
             if thread_type == "normal" and smalltalk_level in ["always", "normal"]:
                 gap_text = "大変お久しぶりです"
     
-    # season_key の決定（簡易版）
+    # season_key
     month = anchor.month
     if month in [12, 1, 2]:
         season_key = "winter"
@@ -110,7 +84,7 @@ def compose_opening(
     else:
         season_key = "autumn"
     
-    # season テキスト（通常スレッドのみ、smalltalk_levelがalways/normalの場合）
+    # season_text
     season_text = None
     if thread_type == "normal" and smalltalk_level in ["always", "normal"]:
         if season_key == "winter":
@@ -119,10 +93,10 @@ def compose_opening(
             season_text = "暖かくなってきましたね"
         elif season_key == "summer":
             season_text = "暑い日が続きますね"
-        else:  # autumn
+        else:
             season_text = "涼しくなってきましたね"
     
-    # opening_text の生成
+    # opening_text
     parts_list = [greeting]
     if gap_text:
         parts_list.append(gap_text)
@@ -144,4 +118,3 @@ def compose_opening(
             "season_key": season_key
         }
     }
-
