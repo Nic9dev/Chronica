@@ -1,2 +1,5 @@
 mcp>=1.0.0
 
+
+# Windows zoneinfo support
+tzdata>=2025.1
