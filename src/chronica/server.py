@@ -3,6 +3,7 @@ Chronica MCP Server - エントリーポイント
 STDIOで起動
 """
 import asyncio
+import sys
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
@@ -26,14 +27,23 @@ def create_server() -> Server:
 
 async def main():
     """メインエントリーポイント"""
+    # 起動ログ（標準エラー出力に出力）
+    print("Chronica MCP Server starting...", file=sys.stderr)
+    print("Waiting for MCP client connection...", file=sys.stderr)
+    
     server = create_server()
     
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options()
-        )
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            print("MCP Server ready. Connected.", file=sys.stderr)
+            await server.run(
+                read_stream,
+                write_stream,
+                server.create_initialization_options()
+            )
+    except KeyboardInterrupt:
+        print("\nShutting down server...", file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":

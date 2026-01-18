@@ -1,120 +1,123 @@
 """
-Opening Pack - compose_opening 実装（v0.1.1）
+Chronica Logic: Opening & Context
 """
+import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
 from zoneinfo import ZoneInfo
+from typing import Optional, Dict, Any
+
+from .store import Store, get_store
 
 JST = ZoneInfo("Asia/Tokyo")
+logger = logging.getLogger("chronica.logic.opening")
 
 
-def compose_opening(
-    anchor_time: str,
-    thread_type: str,
-    last_seen_time: Optional[str] = None,
-    smalltalk_level: str = "normal"
-) -> Dict[str, Any]:
-    """オープニングパックを生成"""
-    anchor = datetime.fromisoformat(anchor_time.replace("Z", "+00:00"))
-    if anchor.tzinfo is None:
-        anchor = anchor.replace(tzinfo=JST)
-    else:
-        anchor = anchor.astimezone(JST)
+def get_season_context(now: datetime) -> str:
+    """季節・時間帯のコンテキストを生成"""
+    month = now.month
+    hour = now.hour
     
-    # time_bucket
-    hour = anchor.hour
+    # 季節判定
+    if month in [12, 1, 2]:
+        season = "冬"
+    elif month in [3, 4, 5]:
+        season = "春"
+    elif month in [6, 7, 8]:
+        season = "夏"
+    else:
+        season = "秋"
+    
+    # 時間帯判定
     if 5 <= hour < 12:
-        time_bucket = "morning"
+        time_of_day = "朝"
     elif 12 <= hour < 17:
-        time_bucket = "afternoon"
+        time_of_day = "午後"
     elif 17 <= hour < 22:
-        time_bucket = "evening"
+        time_of_day = "夕方・夜"
     else:
-        time_bucket = "late"
+        time_of_day = "深夜"
     
-    # greeting
-    if thread_type == "normal":
-        if time_bucket == "morning":
-            greeting = "おはようございます"
-        elif time_bucket == "afternoon":
-            greeting = "こんにちは"
-        else:
-            greeting = "こんばんは"
-    else:
-        greeting = "お疲れ様です"
+    return f"{season}の{time_of_day}"
+
+
+def get_time_gap_description(last_time_str: Optional[str], now: datetime) -> str:
+    """時間差の説明文を生成"""
+    if not last_time_str:
+        return "初対面またはリセット"
     
-    # gap_bucket
-    gap_bucket = None
-    gap_text = None
-    if last_seen_time:
-        last_seen = datetime.fromisoformat(last_seen_time.replace("Z", "+00:00"))
-        if last_seen.tzinfo is None:
-            last_seen = last_seen.replace(tzinfo=JST)
+    try:
+        last_time = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
+        if last_time.tzinfo is None:
+            last_time = last_time.replace(tzinfo=JST)
         else:
-            last_seen = last_seen.astimezone(JST)
+            last_time = last_time.astimezone(JST)
         
-        delta = anchor - last_seen
+        delta = now - last_time
         hours = delta.total_seconds() / 3600
         
         if hours < 2:
-            gap_bucket = "within_2h"
-            if thread_type == "normal" and smalltalk_level in ["always", "normal"]:
-                gap_text = "さっきもありがとうございました"
+            return "さっき（2時間以内）"
         elif hours < 24:
-            gap_bucket = "within_24h"
-            if thread_type == "normal" and smalltalk_level in ["always", "normal"]:
-                gap_text = "久しぶりです"
+            return "久しぶり（24時間以内）"
         elif hours < 24 * 7:
-            gap_bucket = "within_7d"
-            if thread_type == "normal" and smalltalk_level in ["always", "normal"]:
-                gap_text = "お久しぶりです"
+            return "お久しぶり（1週間以内）"
         else:
-            gap_bucket = "over_7d"
-            if thread_type == "normal" and smalltalk_level in ["always", "normal"]:
-                gap_text = "大変お久しぶりです"
+            days = int(hours / 24)
+            return f"大変お久しぶり（{days}日以上）"
+    except Exception as e:
+        logger.warning(f"時間差計算エラー: {e}")
+        return "時間差不明"
+
+
+def compose_opening_logic(thread_id: Optional[str] = None) -> str:
+    """
+    AIへの指示書（構造）を作成する。
+    引数なし。Chronicaが自律的に状況を確定させる。
     
-    # season_key
-    month = anchor.month
-    if month in [12, 1, 2]:
-        season_key = "winter"
-    elif month in [3, 4, 5]:
-        season_key = "spring"
-    elif month in [6, 7, 8]:
-        season_key = "summer"
+    Args:
+        thread_id: スレッドID（指定時はそのスレッドの最後の対話を取得）
+    """
+    store = get_store()
+    
+    # 1. 時間構造の確定（Chronicaが支配する）
+    now = datetime.now(JST)
+    season_text = get_season_context(now)
+    
+    # 2. 記憶構造の取得（スレッドID指定時はそのスレッドの最後の対話を取得）
+    last_seen_entry = store.get_last_interaction(thread_id=thread_id)
+    
+    if last_seen_entry:
+        last_time_str = last_seen_entry.get("saved_time")
+        gap_text = get_time_gap_description(last_time_str, now)
+        last_topic = last_seen_entry.get("text", "")
+        # 長すぎる場合は要約的に切り出し
+        if len(last_topic) > 50:
+            last_topic = last_topic[:50] + "..."
+        
+        memory_struct = f"""
+        - 前回の会話日時: {last_time_str}
+        - 現在との時間差: {gap_text}
+        - 前回のトピック: {last_topic}
+        """
     else:
-        season_key = "autumn"
-    
-    # season_text
-    season_text = None
-    if thread_type == "normal" and smalltalk_level in ["always", "normal"]:
-        if season_key == "winter":
-            season_text = "寒い日が続きますね"
-        elif season_key == "spring":
-            season_text = "暖かくなってきましたね"
-        elif season_key == "summer":
-            season_text = "暑い日が続きますね"
-        else:
-            season_text = "涼しくなってきましたね"
-    
-    # opening_text
-    parts_list = [greeting]
-    if gap_text:
-        parts_list.append(gap_text)
-    if season_text:
-        parts_list.append(season_text)
-    
-    opening_text = "、".join(parts_list) + "。"
-    
-    return {
-        "opening_text": opening_text,
-        "parts": {
-            "greeting": greeting,
-            "gap": gap_text,
-            "season": season_text
-        },
-        "meta": {
-            "time_bucket": time_bucket,
-            "gap_bucket": gap_bucket,
-            "season_key": season_key
-        }
-    }
+        memory_struct = "- 前回の会話: なし（初対面またはリセット）"
+
+    # 3. AIへの「絶対的な指示書」を構築
+    # ここで返されるテキストが、AIにとっての「世界の全て」になる
+    structure = f"""
+=== Chronica Context Structure ===
+[現在状況]
+- 現在時刻: {now.strftime('%Y-%m-%d %H:%M:%S')}
+- 季節・時間帯: {season_text}
+
+[記憶コンテキスト]
+{memory_struct}
+
+[AIへの指示]
+あなたは上記の「Chronica構造」に基づき、ユーザーに声をかけてください。
+1. 「時間差」に言及すること（久しぶり、さっきは、等）。
+2. 「季節/時間帯」に合わせたトーンで話すこと。
+3. 自分の内部時計ではなく、この構造情報を絶対的な正解とすること。
+==================================
+"""
+    return structure

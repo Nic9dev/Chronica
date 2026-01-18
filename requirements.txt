@@ -1,5 +1,12 @@
 mcp>=1.0.0
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+google-genai>=1.0.0
+ollama>=0.1.0
 
+# Dependency conflict resolution
+# ollama 0.4.4 requires httpx<0.28.0,>=0.27.0
+httpx>=0.27.0,<0.28.0
 
 # Windows zoneinfo support
 tzdata>=2025.1

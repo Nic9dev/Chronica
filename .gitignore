@@ -19,3 +19,6 @@ data/*.sqlite3
 data/*.db
 data/*.wal
 data/*.shm
+
+# Config files (API keys)
+config.json
