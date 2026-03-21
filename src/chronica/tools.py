@@ -1,12 +1,12 @@
 """
-MCP Tools - 6ツールの登録と実装
+MCPツール定義・実装（Claude Desktop最適化版）
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from mcp import types
 from mcp.server import Server
 
-from .store import Store, set_store, get_store
-from .opening import compose_opening_logic
+from .store import get_store
+from .opening import compose_opening_context
 from .summarize import summarize
 from .timeparse import parse_event_time
 
@@ -18,23 +18,56 @@ def register_tools(server: Server):
     async def list_tools() -> List[types.Tool]:
         return [
             types.Tool(
-                name="chronica.save_entry",
-                description="エントリを保存します",
+                name="chronica_save_entry",
+                description="""
+エントリ（記憶・記録）を保存します。
+
+【使用タイミング】
+- ユーザーが新しい情報を提供したとき
+- 重要な決定事項があったとき
+- タスクや未決事項が発生したとき
+- 出来事や質問があったとき
+
+【保存すべきタイミング】
+- 「覚えておいて」「忘れないで」「記録して」などの発言
+- 「今日〇〇をした」「〇〇に決めた」「〇〇をやる予定」
+- 新しい事実・決定・予定・気づき・感情が含まれる発言
+- 迷ったら保存する。保存しすぎるほうが保存漏れより良い。
+- 「保存しました」等の報告は不要。会話を自然に続ける。
+
+【Claude向けの注意】
+- ユーザーに「保存しました」等の確認は不要
+- 自然に会話を続ける
+- メタ発言（「Chronicaに保存します」等）は避ける
+""",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "entry": {
                             "type": "object",
-                            "description": "Entry JSON（version, entry_id, saved_time, thread, kind, text, tags 必須）",
-                            "required": ["thread", "kind", "text", "tags"]
+                            "description": "Entry JSON（thread, kind, text, tags は必須）"
                         }
                     },
                     "required": ["entry"]
                 }
             ),
             types.Tool(
-                name="chronica.search",
-                description="エントリを検索します",
+                name="chronica_search",
+                description="""
+保存されたエントリを検索します。
+
+【使用タイミング】
+- ユーザーが「最近の〜を振り返りたい」と言ったとき
+- 特定のタグやトピックの記録を探すとき
+
+【能動的な記憶参照】
+- ユーザーの発言に既存の記憶と関連しそうなテーマが出てきたら、
+  会話を止めずに裏側でsearchを呼ぶこと。
+- 関連記憶が見つかった場合、「Chronicaによると〜」等のメタ発言は不要。
+  その記憶を自然に会話に織り込む。
+- 例：ユーザーが仕事の悩みを話す → 過去の関連決定事項を検索
+  → 「以前〇〇と決めていましたよね」と自然につなげる。
+""",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -62,15 +95,19 @@ def register_tools(server: Server):
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "最大件数",
-                            "default": 100
+                            "description": "最大件数"
                         }
                     }
                 }
             ),
             types.Tool(
-                name="chronica.timeline",
-                description="タイムラインを取得します（期間指定）",
+                name="chronica_timeline",
+                description="""
+指定期間のタイムラインを取得します。
+
+【使用タイミング】
+- 「今日の振り返り」「この1週間の出来事をまとめて」と依頼されたとき
+""",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -97,15 +134,14 @@ def register_tools(server: Server):
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "最大件数",
-                            "default": 100
+                            "description": "最大件数"
                         }
                     }
                 }
             ),
             types.Tool(
-                name="chronica.get_last_seen",
-                description="最後に見た時刻を取得します",
+                name="chronica_get_last_seen",
+                description="指定されたスレッドタイプで最後に見た時刻を取得します。",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -119,8 +155,18 @@ def register_tools(server: Server):
                 }
             ),
             types.Tool(
-                name="chronica.compose_opening",
-                description="会話開始時に必ず呼び出すこと。Chronicaから現在時刻や記憶構造を取得する。",
+                name="chronica_compose_opening",
+                description="""
+会話開始時に必ず呼び出すこと。
+現在時刻、前回の会話からの経過時間、記憶コンテキストを取得します。
+
+【Claude向けの指示】
+- 返された情報が絶対的な事実
+- 自分で時間を推測しない
+- 季節への過度な言及は避ける
+- 「Chronicaによると」等のメタ発言は避ける
+- 自然に「お久しぶりです」「前回は〜について話していましたね」等と声をかける
+""",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -128,13 +174,12 @@ def register_tools(server: Server):
                             "type": "string",
                             "description": "スレッドID（指定時はそのスレッドの最後の対話を取得）"
                         }
-                    },
-                    "required": []
+                    }
                 }
             ),
             types.Tool(
-                name="chronica.summarize",
-                description="サマリーパックを生成します（Summary Pack v0.1.2）",
+                name="chronica_summarize",
+                description="サマリーパックを生成します（Summary Pack v0.1.2）。",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -161,8 +206,8 @@ def register_tools(server: Server):
                 }
             ),
             types.Tool(
-                name="chronica.create_thread",
-                description="新しいスレッドを作成します",
+                name="chronica_create_thread",
+                description="新しいスレッドを作成します。",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -173,16 +218,15 @@ def register_tools(server: Server):
                         "thread_type": {
                             "type": "string",
                             "enum": ["normal", "project"],
-                            "description": "スレッドタイプ",
-                            "default": "normal"
+                            "description": "スレッドタイプ"
                         }
                     },
                     "required": ["thread_name"]
                 }
             ),
             types.Tool(
-                name="chronica.list_threads",
-                description="スレッド一覧を取得します",
+                name="chronica_list_threads",
+                description="スレッド一覧を取得します。",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -195,8 +239,8 @@ def register_tools(server: Server):
                 }
             ),
             types.Tool(
-                name="chronica.get_thread_info",
-                description="指定されたスレッドの情報を取得します",
+                name="chronica_get_thread_info",
+                description="指定されたスレッドの情報を取得します。",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -216,7 +260,7 @@ def register_tools(server: Server):
         store = get_store()
         
         try:
-            if name == "chronica.save_entry":
+            if name == "chronica_save_entry":
                 entry = arguments.get("entry", {})
                 
                 # バリデーション
@@ -280,7 +324,7 @@ def register_tools(server: Server):
                         text=json.dumps({"error": "save_error", "message": str(e)}, ensure_ascii=False)
                     )]
         
-            elif name == "chronica.search":
+            elif name == "chronica_search":
                 thread_type = arguments.get("thread_type")
                 if thread_type and thread_type not in ["normal", "project"]:
                     return [types.TextContent(
@@ -301,7 +345,7 @@ def register_tools(server: Server):
                     text=json.dumps({"entries": entries}, ensure_ascii=False, indent=2)
                 )]
         
-            elif name == "chronica.timeline":
+            elif name == "chronica_timeline":
                 thread_type = arguments.get("thread_type")
                 if thread_type and thread_type not in ["normal", "project"]:
                     return [types.TextContent(
@@ -321,7 +365,7 @@ def register_tools(server: Server):
                     text=json.dumps({"entries": entries}, ensure_ascii=False, indent=2)
                 )]
         
-            elif name == "chronica.get_last_seen":
+            elif name == "chronica_get_last_seen":
                 thread_type = arguments.get("thread_type")
                 if not thread_type:
                     return [types.TextContent(
@@ -342,16 +386,16 @@ def register_tools(server: Server):
                     text=json.dumps(result, ensure_ascii=False)
                 )]
         
-            elif name == "chronica.compose_opening":
+            elif name == "chronica_compose_opening":
                 # スレッドIDが指定されている場合はそれを渡す
                 thread_id = arguments.get("thread_id") if arguments else None
-                result_text = compose_opening_logic(thread_id=thread_id)
+                context = compose_opening_context(store, thread_id)
                 return [types.TextContent(
                     type="text",
-                    text=result_text
+                    text=context
                 )]
         
-            elif name == "chronica.summarize":
+            elif name == "chronica_summarize":
                 mode = arguments.get("mode")
                 range_start = arguments.get("range_start")
                 range_end = arguments.get("range_end")
@@ -387,7 +431,7 @@ def register_tools(server: Server):
                     text=json.dumps(summary_pack, ensure_ascii=False, indent=2)
                 )]
             
-            elif name == "chronica.create_thread":
+            elif name == "chronica_create_thread":
                 thread_name = arguments.get("thread_name")
                 thread_type = arguments.get("thread_type", "normal")
                 
@@ -406,7 +450,7 @@ def register_tools(server: Server):
                     text=json.dumps({"thread_id": thread_id, "thread_name": thread_name, "thread_type": thread_type}, ensure_ascii=False)
                 )]
             
-            elif name == "chronica.list_threads":
+            elif name == "chronica_list_threads":
                 thread_type = arguments.get("thread_type")
                 threads = store.list_threads(thread_type=thread_type)
                 return [types.TextContent(
@@ -414,7 +458,7 @@ def register_tools(server: Server):
                     text=json.dumps({"threads": threads}, ensure_ascii=False, indent=2)
                 )]
             
-            elif name == "chronica.get_thread_info":
+            elif name == "chronica_get_thread_info":
                 thread_id = arguments.get("thread_id")
                 
                 if not thread_id:

@@ -7,9 +7,6 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from zoneinfo import ZoneInfo
-
-JST = ZoneInfo("Asia/Tokyo")
 
 # グローバルStoreインスタンス（循環インポート回避のためここに配置）
 _store: Optional['Store'] = None
@@ -102,7 +99,7 @@ class Store:
             entry["entry_id"] = str(uuid.uuid4())
         
         if "saved_time" not in entry or not entry["saved_time"]:
-            entry["saved_time"] = datetime.now(JST).isoformat()
+            entry["saved_time"] = datetime.now().astimezone().isoformat()
         
         event_time = entry.get("event_time", {})
         thread = entry.get("thread", {})
@@ -145,12 +142,51 @@ class Store:
             entry.get("project"),
             links.get("source"),
             links_refs_json,
-            datetime.now(JST).isoformat()
+            datetime.now().astimezone().isoformat()
         ))
         
         conn.commit()
         conn.close()
         return entry["entry_id"]
+    
+    def delete_entry(self, entry_id: str) -> bool:
+        """エントリを削除"""
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM entries WHERE entry_id = ?", (entry_id,))
+            conn.commit()
+            deleted = cursor.rowcount > 0
+            conn.close()
+            return deleted
+        except Exception as e:
+            print(f"削除エラー: {e}")
+            return False
+    
+    def delete_entries(self, entry_ids: List[str]) -> int:
+        """複数のエントリを削除（バッチ削除）"""
+        deleted = 0
+        for entry_id in entry_ids:
+            if self.delete_entry(entry_id):
+                deleted += 1
+        return deleted
+    
+    def get_all_tags(self) -> List[str]:
+        """全エントリからユニークなタグを取得（フィルタ用）"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.cursor()
+        cursor.execute("SELECT tags FROM entries WHERE tags IS NOT NULL AND tags != '[]'")
+        rows = cursor.fetchall()
+        conn.close()
+        tags = set()
+        for row in rows:
+            try:
+                for t in json.loads(row[0]):
+                    if isinstance(t, str):
+                        tags.add(t)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return sorted(tags)
     
     def search(
         self,
@@ -328,7 +364,7 @@ class Store:
     def create_thread(self, thread_name: str, thread_type: str = "normal") -> str:
         """新しいスレッドを作成"""
         thread_id = str(uuid.uuid4())
-        now = datetime.now(JST).isoformat()
+        now = datetime.now().astimezone().isoformat()
         
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
@@ -427,7 +463,7 @@ class Store:
             return False
         
         updates.append("updated_at = ?")
-        params.append(datetime.now(JST).isoformat())
+        params.append(datetime.now().astimezone().isoformat())
         params.append(thread_id)
         
         cursor.execute(f"""

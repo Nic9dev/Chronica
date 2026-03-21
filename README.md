@@ -1,242 +1,252 @@
-# Chronica MCP Server
+# Chronica 🗝️
 
-Chronicaは、個人の記憶を管理するMCP（Model Context Protocol）サーバーです。
+**A persistent memory layer for Claude Desktop via MCP**  
+**Claude Desktopに長期記憶を与えるMCPサーバー**
 
-## プロジェクト構成
+> "AI conversations forget everything when the session ends.  
+>  Chronica remembers — so Claude can pick up right where you left off."
+
+---
+
+## What is Chronica?
+
+Chronica is a **Model Context Protocol (MCP) server** that gives Claude Desktop persistent, structured memory across sessions.
+
+When you start a new conversation, Claude automatically calls `chronica.compose_opening` — and greets you with awareness of:
+- ✅ The current time (PC local timezone, auto-detected)
+- ✅ How long it's been since your last conversation
+- ✅ What you were talking about last time
+
+No more "I don't have context from previous sessions." Chronica solves this at the architecture level.
+
+---
+
+## Chronicaとは？
+
+Chronicaは、Claude Desktopに**会話をまたいだ記憶**を持たせるためのMCPサーバーです。
+
+AIとの会話は、セッションが終わるとすべてリセットされます。  
+Chronicaを導入すると、Claudeが次回の会話開始時に自動で記憶を読み込み、自然に続きから話せるようになります。
+
+---
+
+## Features / 機能
+
+| Tool | Description |
+|------|-------------|
+| `compose_opening` | 会話開始時に時刻・経過時間・前回トピックをコンテキスト生成 |
+| `save_entry` | 会話内容をClaudeが自動保存（メモ・決定・タスクなど5種） |
+| `search` | タグ・種別・スレッドで記憶を検索 |
+| `timeline` | 期間指定でタイムラインを取得 |
+| `summarize` | 日次・週次・決定事項のサマリー生成 |
+| `get_last_seen` | 最後に会話した時刻を取得 |
+| `create_thread` | スレッド（会話トピック）を作成 |
+| `list_threads` | スレッド一覧を取得 |
+| `get_thread_info` | スレッドの詳細情報を取得 |
+
+### Curation UI（キュレーション画面）
+
+Streamlit製の管理UIで、蓄積した記憶を整理できます。
+
+- 📋 記憶の一覧表示（種別・タグでフィルタ）
+- 🗑️ 不要な記憶の削除（編集不可・削除のみ）
+- 📊 トークン使用量の可視化（TOP 10・使用率）
+
+---
+
+## Architecture / アーキテクチャ
 
 ```
-Chronica/
-├── src/chronica/          # MCPサーバー実装
-│   ├── server.py          # STDIOサーバー
-│   ├── server_http.py     # HTTP/SSEサーバー
-│   ├── tools.py           # MCPツール定義
-│   ├── store.py           # データベース層
-│   └── ...
-├── clients/               # クライアントアプリケーション
-│   ├── client_gemini.py   # Gemini API版（参考用）
-│   └── client_ollama.py   # Ollama版（✅ 実装済み）
-├── run_server.py          # MCPサーバー起動（STDIO）
-├── run_server_http.py     # MCPサーバー起動（HTTP/SSE）
-└── config.json            # 設定ファイル（.gitignore）
+Claude Desktop (Sonnet)
+        │ MCP Protocol (STDIO)
+        ▼
+Chronica MCP Server (Python)
+  └── src/chronica/
+        ├── tools.py       # 9 MCP tools
+        ├── opening.py     # Context generation
+        ├── summarize.py   # Summary generation
+        ├── store.py       # SQLite persistence
+        └── timeparse.py   # Relative time parsing
+        │ SQLite
+        ▼
+data/chronica.sqlite3
 ```
 
-## 起動方法
+**Design philosophy**: Chronica is the single source of truth for time and memory structure. Claude acts purely as the interface — preventing hallucination by trusting only Chronica's structured output.
 
-### 前提条件
+---
 
-- Python 3.10以上
-- venv環境（`.venv`ディレクトリ）
+## Requirements / 必要な環境
 
-### セットアップ
+- Python 3.10+
+- [Claude Desktop](https://claude.ai/download) (with MCP support)
+- Windows / macOS
 
-1. venv環境を作成（未作成の場合）:
-   ```powershell
-   python -m venv .venv
-   ```
+---
 
-2. venvを有効化:
-   ```powershell
-   .venv\Scripts\Activate.ps1
-   ```
+## Installation / インストール
 
-3. 依存関係をインストール:
-   ```powershell
-   pip install -r requirements.txt
-   ```
+### クイックセットアップ（推奨）
 
-### 起動
-
-venv環境で以下のコマンドを実行:
+プロジェクトルートで以下を実行すると、仮想環境・依存パッケージ・Claude Desktop設定を一括で行います。
 
 ```powershell
-.venv\Scripts\python.exe run_server.py
+# Windows (PowerShell)
+.\setup.ps1
+
+# Windows (cmd)
+setup.bat
 ```
 
-または、venvが有効化されている場合:
-
-```powershell
-python run_server.py
+```bash
+# macOS / Linux
+chmod +x setup.sh
+./setup.sh
 ```
 
-サーバーはSTDIOで起動し、MCP Inspector等から接続できます。
+> 完了後、Claude Desktop / Claude Code を再起動してください。
 
-### 起動方法（HTTP/SSE版 - GPT等のリモート接続用）
+**Claude Code を使っている場合**  
+セットアップ後、Chronica フォルダを開いて会話を開始すると、`.mcp.json` により Chronica が自動で読み込まれます。初回は MCP サーバーの利用許可を求められる場合があります。
 
-HTTP/SSE版を起動する場合（GPTでMCPサーバーを登録する場合）：
+**「MCPサーバーは追加されていません」と表示される場合**  
+claude.ai からダウンロードした MSIX 版は、別の設定パスを使用します。`.\setup.ps1` を再実行すると、両方のパスに設定が書き込まれます。
 
-```powershell
-python run_server_http.py
+---
+
+### 手動セットアップ
+
+#### 1. Clone the repository
+
+```bash
+git clone https://github.com/YOUR_USERNAME/Chronica.git
+cd Chronica
 ```
 
-または、ホストとポートを指定する場合：
+#### 2. Create virtual environment / 仮想環境を作成
 
-```powershell
-python run_server_http.py --host 127.0.0.1 --port 8000
+```bash
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# macOS
+source .venv/bin/activate
 ```
 
-起動後、以下のエンドポイントが利用可能になります：
-- **SSEエンドポイント**: `http://127.0.0.1:8000/sse`
-- **メッセージエンドポイント**: `http://127.0.0.1:8000/messages`
+#### 3. Install dependencies / 依存パッケージをインストール
 
-**注意**: ローカル開発用のため、認証なしで動作します。本番環境では適切な認証を実装してください。
+```bash
+pip install -r requirements.txt
+```
 
-### HTTPSで公開する方法（GPTで登録する場合）
+#### 4. Configure Claude Desktop / Claude Desktopに設定を追加
 
-GPTでMCPサーバーを登録するには、HTTPS URLが必要です。**cloudflared**または**ngrok**を使用してローカルサーバーをHTTPSで公開できます。
+Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下を追加してください。
 
-#### 方法1: cloudflaredを使用（推奨）
+**設定ファイルの場所 / Config file location:**
 
-1. **cloudflaredをインストール:**
-   - Windows: [cloudflaredのダウンロードページ](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/)からダウンロード
-   - または、Scoopを使用: `scoop install cloudflared`
-   - または、Chocolateyを使用: `choco install cloudflared`
+- Windows (MSIX版 / claude.aiからDL): `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json`
+- Windows (従来版 / exeインストール): `%APPDATA%\Claude\claude_desktop_config.json`
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
 
-2. **トンネルを作成してサーバーを公開:**
-   ```powershell
-   cloudflared tunnel --url http://127.0.0.1:8000
-   ```
+> `.\setup.ps1` を実行すると、MSIX版・従来版を自動検出して適切なパスに設定を書き込みます。
 
-3. **表示されたHTTPS URLを使用:**
-   - 例: `https://xxxx-xxxx-xxxx.trycloudflare.com`
-   - このURLの `/sse` エンドポイントをGPTで使用: `https://xxxx-xxxx-xxxx.trycloudflare.com/sse`
-
-#### 方法2: ngrokを使用
-
-1. **ngrokをインストール:**
-   - [ngrokの公式サイト](https://ngrok.com/)からダウンロード
-   - または、Scoopを使用: `scoop install ngrok`
-   - アカウントを作成して認証トークンを取得
-
-2. **認証トークンを設定:**
-   ```powershell
-   ngrok config add-authtoken <YourAuthToken>
-   ```
-
-3. **トンネルを作成:**
-   ```powershell
-   ngrok http 8000
-   ```
-
-4. **表示されたHTTPS URLを使用:**
-   - 例: `https://xxxx-xxxx-xxxx.ngrok.io`
-   - このURLの `/sse` エンドポイントをGPTで使用: `https://xxxx-xxxx-xxxx.ngrok.io/sse`
-
-**注意**: トンネルはサーバーと同時に起動する必要があります。サーバーを停止すると、トンネルも停止します。
-
-## MCP Inspectorでの接続テスト
-
-### 前提条件
-
-- Node.jsがインストールされていること
-
-### 手順
-
-1. **MCP Inspectorを起動:**
-   
-   プロジェクトルート（`C:\Dev\Chronica`）で、以下のコマンドを実行します：
-   
-   ```powershell
-   npx @modelcontextprotocol/inspector python run_server.py
-   ```
-   
-   または、venvが有効化されている場合：
-   
-   ```powershell
-   npx @modelcontextprotocol/inspector .venv\Scripts\python.exe run_server.py
-   ```
-
-2. **ブラウザでインターフェースが開きます:**
-   - MCP Inspectorのインターフェースが自動的にブラウザで開きます
-   - 左側にツール一覧が表示されます
-
-3. **ツールをテスト:**
-   - 左側のツール一覧から任意のツールを選択
-   - パラメータを入力して「Call Tool」ボタンをクリック
-   - 結果が右側に表示されます
-
-### テスト例
-
-**`chronica.get_last_seen`のテスト:**
 ```json
 {
-  "thread_type": "normal"
-}
-```
-
-**`chronica.compose_opening`のテスト:**
-```json
-{
-  "anchor_time": "2026-01-06T12:00:00+09:00",
-  "thread_type": "normal",
-  "smalltalk_level": "always"
-}
-```
-
-**`chronica.save_entry`のテスト:**
-```json
-{
-  "entry": {
-    "version": "0.1",
-    "saved_time": "2026-01-06T12:00:00+09:00",
-    "thread": {
-      "type": "normal"
-    },
-    "kind": "note",
-    "text": "テストエントリ",
-    "tags": ["test"]
+  "mcpServers": {
+    "chronica": {
+      "command": "C:/path/to/Chronica/.venv/Scripts/python.exe",
+      "args": ["C:/path/to/Chronica/run_server.py"],
+      "env": {
+        "PYTHONPATH": "C:/path/to/Chronica/src"
+      }
+    }
   }
 }
 ```
 
-## 提供ツール（v0.1）
+> ⚠️ `C:/path/to/Chronica` の部分はご自身の実際のパスに書き換えてください。  
+> ⚠️ Windowsでは `/` を使ってください（`\` は不可）。
 
-1. `chronica.save_entry` - エントリを保存
-2. `chronica.search` - エントリを検索
-3. `chronica.timeline` - タイムラインを取得
-4. `chronica.get_last_seen` - 最後に見た時刻を取得
-5. `chronica.compose_opening` - オープニングパックを生成
-6. `chronica.summarize` - サマリーパックを生成
+#### 5. Restart Claude Desktop / Claude Desktopを再起動
 
-## データベース
+設定後、Claude Desktopを再起動してください。  
+新しい会話を開始し、Claudeが自動で記憶を読み込むことを確認できます。
 
-SQLiteデータベースは `data/chronica.sqlite3` に自動的に作成されます。
-このファイルは `.gitignore` で除外されているため、コミットされません。
+---
 
-## クライアントアプリケーション
+## Usage / 使い方
 
-### Ollama版（✅ 実装済み）
+### 初回起動後
 
-ローカルLLMを使用したクライアント。API制限なしで利用可能。
+新しい会話を始めると、Claudeが自動で `chronica_compose_opening` を呼び出し、コンテキストを読み込みます。特別な操作は不要です。
 
-**前提条件**:
-- Ollamaがインストールされ、起動していること
-- 使用するモデルがダウンロードされていること（例: `ollama pull qwen2.5:7b`）
+### コネクタのオン/オフ（会話ごとに切り替え可能）
 
-**使用方法**:
+チャットの「+」ボタンまたは「/」でメニューを開き、「コネクタ」から Chronica をオン/オフできます。
+
+| コネクタ | 記憶の保存 | 記憶の呼び出し | 時間認識 |
+|----------|------------|----------------|----------|
+| **ON**   | 自動で行う | 自動で行う     | あり     |
+| **OFF**  | 行わない   | 行わない       | なし     |
+
+- **ON**: 記憶の保存・呼び出し・時間認識が自動で行われます。
+- **OFF**: その会話では Chronica のツールは利用されません。記憶を使わない一時的な相談などに。
+
+### 日常の使い方
+
+- **記憶の保存**: 通常通り会話するだけ。Claudeが自動で重要な情報を保存します。
+- **記憶の検索**: 「先週決めたことを教えて」など自然に聞くだけでOK。
+- **キュレーションUI**: 記憶が溜まってきたら、以下で整理できます。
+
 ```powershell
-python clients/client_ollama.py
+# Windows (PowerShell)
+.\run_curation.ps1
+
+# Windows (cmd)
+run_curation.bat
+
+# または
+python -m streamlit run app_curation.py
 ```
 
-**設定**:
-`config.json`に以下の設定を追加してください：
-```json
-{
-  "OLLAMA_MODEL": "qwen3:8b",
-  "OLLAMA_BASE_URL": "http://localhost:11434",
-  "SHOW_TOOL_LOGS": false
-}
-```
+---
 
-**推奨モデル**:
-- **Qwen 3 (8B)** ⭐: Qwen 2.5の後継モデル。性能が大幅に向上し、JSONの書き間違いが少ない。日本語も非常に上手。最優先推奨。
-- **Qwen 3 (4B)**: リソースが限られている場合の軽量版。十分に実用的。
-- **Qwen 3 (30B)**: 最高性能が必要な場合。高いVRAMが必要。
-- **Gemma 3 (4B)**: Google純正。文脈を読む力が強く、ChronicaのようなパートナーAIに最適。
-- **ELYZA Llama-3**: 日本語特化の最高峰。会話だけなら最強だが、複雑なTool指示でQwen 3に一歩譲る場合がある。
+## Roadmap
 
-詳細は `clients/README.md` を参照してください。
+### Phase 2（近日予定）
+- [ ] 重複記憶の自動検出（TF-IDF + コサイン類似度）
+- [ ] バッチ削除機能（複数選択）
+- [ ] 全文検索
+- [ ] エクスポート機能（JSON / CSV）
 
-## 参照
+### Phase 3（将来）
+- [ ] クラウド同期（Supabase + E2EE）
+- [ ] 複数デバイス対応
 
-- 仕様書: `docs/Chronica_SoT_and_CursorMission_MERGED_v0.1_plus_thread_addendum_2026-01-06.md`
+### Phase 4（将来）
+- [ ] SaaS化・マルチテナント対応
 
+---
+
+## License
+
+MIT License — see [LICENSE](./LICENSE) for details.
+
+---
+
+## Author / 作者
+
+**Nic9** （にく９）  
+プログラミング未経験からAIと共に独学で複数のシステムを構築。  
+Chronicaは「AIと長く付き合い続けるための、個人的な基盤」として生まれました。
+
+---
+
+## Contributing
+
+Issues and PRs are welcome!  
+バグ報告・機能要望は [Issues](./issues) からどうぞ。

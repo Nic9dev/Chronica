@@ -4,13 +4,13 @@ Chronica - MCP Server for Personal Memory
 __version__ = "0.1.0"
 
 from .store import Store
-from .opening import compose_opening_logic
+from .opening import compose_opening_context
 from .summarize import summarize
 from .timeparse import parse_event_time
 
 __all__ = [
     "Store",
-    "compose_opening_logic",
+    "compose_opening_context",
     "summarize",
     "parse_event_time",
 ]

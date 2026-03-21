@@ -1,0 +1,3 @@
+"""
+Assets Module for Chronica
+"""

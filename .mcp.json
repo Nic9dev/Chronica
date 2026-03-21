@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "chronica": {
+      "command": "python",
+      "args": ["run_chronica_mcp.py"],
+      "env": {}
+    }
+  }
+}

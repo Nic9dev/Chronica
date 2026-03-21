@@ -7,8 +7,8 @@ import sys
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from .store import Store
-from .tools import register_tools, set_store
+from .store import Store, set_store
+from .tools import register_tools
 
 
 def create_server() -> Server:

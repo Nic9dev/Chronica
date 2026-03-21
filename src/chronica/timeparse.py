@@ -4,9 +4,11 @@ Timeparse - 相対日時パーサ（v0.1最小対応）
 import re
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
-from zoneinfo import ZoneInfo
 
-JST = ZoneInfo("Asia/Tokyo")
+
+def _local_now() -> datetime:
+    """PCのローカル時刻を取得"""
+    return datetime.now().astimezone()
 
 
 def parse_event_time(raw: str, anchor_time: Optional[str] = None) -> Dict[str, Any]:
@@ -17,11 +19,11 @@ def parse_event_time(raw: str, anchor_time: Optional[str] = None) -> Dict[str, A
     if anchor_time:
         anchor = datetime.fromisoformat(anchor_time.replace("Z", "+00:00"))
         if anchor.tzinfo is None:
-            anchor = anchor.replace(tzinfo=JST)
+            anchor = anchor.replace(tzinfo=_local_now().tzinfo)
         else:
-            anchor = anchor.astimezone(JST)
+            anchor = anchor.astimezone()
     else:
-        anchor = datetime.now(JST)
+        anchor = _local_now()
     
     result = {"raw": raw, "confidence": 0.0}
     
