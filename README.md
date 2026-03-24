@@ -225,6 +225,17 @@ run_curation.bat
 python -m streamlit run app_curation.py
 ```
 
+### 💡 Tips：会話をまたいだ引き継ぎ
+
+新しい会話（vol.2、vol.3 など）を始めるときは、以下のように伝えると
+前回の作業内容をChronicaから正確に引き出せます。
+chronica_searchをproject「プロジェクト名」・タグ「vol2」で呼んで、
+前回の作業内容と待ち事項を確認して。
+
+> ⚠️ 「前回の作業を確認して」だけだと、ClaudeがChronicaではなく
+> 自分の会話履歴を参照してしまうことがあります。
+> **project と タグを明示的に指定する**のがポイントです。
+
 ---
 
 ## Roadmap

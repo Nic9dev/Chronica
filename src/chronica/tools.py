@@ -178,6 +178,17 @@ def register_tools(server: Server):
 - 季節への過度な言及は避ける
 - 「Chronicaによると」等のメタ発言は避ける
 - 自然に「お久しぶりです」「前回は〜について話していましたね」等と声をかける
+
+【プロジェクト引き継ぎ時の注意】
+- 新しい会話で「前回の作業を確認して」と言われたら、
+  compose_opening の後に必ず chronica_search を
+  project 指定で呼び出してプロジェクト記憶を取得すること。
+- compose_opening だけでは通常会話の直近トピックのみ返る。
+  プロジェクトの詳細な作業ログは search で取得する。
+
+【ユーザーへの推奨呼び出し方（vol引き継ぎ等）】
+「chronica_searchをproject『プロジェクト名』・タグ『volN』で呼んで、
+前回の作業内容を確認して」
 """,
                 inputSchema={
                     "type": "object",
