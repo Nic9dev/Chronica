@@ -1,18 +1,6 @@
 {
-  "$schema": "https://glama.ai/mcp/servers/schema.json",
-  "name": "Chronica",
-  "description": "A persistent memory layer for Claude Desktop via MCP. Stores structured memories in SQLite across sessions with a Streamlit curation UI for token management.",
-  "license": "MIT",
-  "tools": [
-    { "name": "chronica_compose_opening" },
-    { "name": "chronica_session_tick" },
-    { "name": "chronica_save_entry" },
-    { "name": "chronica_search" },
-    { "name": "chronica_timeline" },
-    { "name": "chronica_summarize" },
-    { "name": "chronica_get_last_seen" },
-    { "name": "chronica_create_thread" },
-    { "name": "chronica_list_threads" },
-    { "name": "chronica_get_thread_info" }
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": [
+    "Nic9dev"
   ]
 }
