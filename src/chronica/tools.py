@@ -6,7 +6,7 @@ from mcp import types
 from mcp.server import Server
 
 from .store import get_store
-from .opening import compose_opening_context
+from .opening import compose_opening_context, session_tick_payload
 from .summarize import summarize
 from .timeparse import parse_event_time
 
@@ -165,7 +165,12 @@ def register_tools(server: Server):
                 name="chronica_compose_opening",
                 description="""
 会話開始時に必ず呼び出すこと。
-現在時刻、前回の会話からの経過時間、記憶コンテキストを取得します。
+現在時刻（年月日・時分秒）、前回の会話からの経過時間、記憶コンテキストを取得します。
+
+【現在時刻について（重要）】
+- 返却テキストの [現在状況] に「現在時刻: YYYY-MM-DD HH:MM:SS」が含まれる。これはPCローカル時計に基づく正確な値。
+- ユーザーが「今何時」「正確な時刻」「リアルタイムで時刻を」等と尋ねたときも、本ツールを呼び出してその行の時刻を答えること。
+- 本ツールを呼ばずに「時分は取得できない」と答えてはならない。時刻が必要なら必ず呼ぶ。
 
 【Claude向けの指示】
 - 返された情報が絶対的な事実
@@ -180,6 +185,31 @@ def register_tools(server: Server):
                         "thread_id": {
                             "type": "string",
                             "description": "スレッドID（指定時はそのスレッドの最後の対話を取得）"
+                        }
+                    }
+                }
+            ),
+            types.Tool(
+                name="chronica_session_tick",
+                description="""
+【毎ターン・返答前に呼ぶ】MCPはサーバーからClaudeへ能動プッシュできないため、
+ユーザーからメッセージを受け取ったら、返答を書く直前に必ず本ツールを呼ぶこと。
+「常に許可」推奨。負荷は極小（短いJSONのみ）。
+
+返却JSONの意味:
+- now_local: 現在のローカル日時（時分秒まで正確）
+- since_last_memory: 最後の記憶からの経過（「3日前」「数分前」「初回」など）→「何日ぶり」の根拠
+- last_topic_preview: 直近記憶の冒頭
+- season / time_of_day: 季節・時間帯
+
+chronica_compose_opening は会話開始の挨拶用。2通目以降は本ツールで時刻・経過を毎回同期する。
+""",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "thread_id": {
+                            "type": "string",
+                            "description": "スレッドID（省略時は全体の直近記憶から経過を算出）"
                         }
                     }
                 }
@@ -403,6 +433,14 @@ def register_tools(server: Server):
                 return [types.TextContent(
                     type="text",
                     text=context
+                )]
+
+            elif name == "chronica_session_tick":
+                thread_id = arguments.get("thread_id") if arguments else None
+                payload = session_tick_payload(store, thread_id)
+                return [types.TextContent(
+                    type="text",
+                    text=json.dumps(payload, ensure_ascii=False)
                 )]
         
             elif name == "chronica_summarize":

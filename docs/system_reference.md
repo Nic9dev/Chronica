@@ -92,7 +92,7 @@ Chronicaは、個人の記憶を管理する **Claude Desktop専用のMCP（Mode
 │     Chronica MCP Server (Python)       │
 │  ┌──────────────────────────────────┐  │
 │  │  Tools Layer (tools.py)          │  │
-│  │  - 9つのMCPツールを提供           │  │
+│  │  - 10のMCPツールを提供            │  │
 │  └──────────────────────────────────┘  │
 │  ┌──────────────────────────────────┐  │
 │  │  Logic Layer                     │  │
@@ -278,7 +278,9 @@ async def main():
 
 ## ツール仕様
 
-Chronicaは9つのMCPツールを提供します。ツール名は Claude Desktop の命名規則（`^[a-zA-Z0-9_-]{1,64}$`）に従い、アンダースコア区切り（例: `chronica_save_entry`）を使用します。
+Chronicaは10のMCPツールを提供します。ツール名は Claude Desktop の命名規則（`^[a-zA-Z0-9_-]{1,64}$`）に従い、アンダースコア区切り（例: `chronica_save_entry`）を使用します。
+
+**補足**: MCP（STDIO）はサーバーからクライアントへ能動プッシュできないため、各ターンの現在時刻・「何日ぶり」は `chronica_session_tick` をモデルが呼ぶ設計としている。
 
 ### 1. `chronica_save_entry`
 
@@ -466,7 +468,35 @@ Chronicaは9つのMCPツールを提供します。ツール名は Claude Deskto
 
 ---
 
-### 6. `chronica_summarize`
+### 6. `chronica_session_tick`
+
+**各ユーザーメッセージの返答直前に呼び出すこと（推奨）。**  
+短いJSONで現在のローカル日時・最後の記憶からの経過（「何日ぶり」の根拠）・直近トピック冒頭を返す。
+
+- MCPホストは会話ターンのたびにサーバーへ自動通知しないため、**真の「裏側プッシュ」はプロトコル上不可**。本ツールで同等の情報を毎ターン取得する。
+- `chronica_compose_opening` は会話開始の挨拶用。2通目以降は本ツールで時刻・経過を同期する。
+
+**引数**:
+```json
+{ "thread_id": "thread-uuid" }  // オプション（省略時は全体の直近記憶基準）
+```
+
+**戻り値**（例）:
+```json
+{
+  "now_local": "2026-03-24 20:30:00",
+  "season": "春",
+  "time_of_day": "夜",
+  "since_last_memory": "3日前",
+  "last_topic_preview": "…"
+}
+```
+
+**実装**: `src/chronica/opening.py` の `session_tick_payload(store, thread_id)`
+
+---
+
+### 7. `chronica_summarize`
 
 サマリーパックを生成します（Summary Pack v0.1.2）。
 
@@ -508,7 +538,7 @@ Chronicaは9つのMCPツールを提供します。ツール名は Claude Deskto
 
 ---
 
-### 7. `chronica_create_thread`
+### 8. `chronica_create_thread`
 
 新しいスレッドを作成します。
 
@@ -527,7 +557,7 @@ Chronicaは9つのMCPツールを提供します。ツール名は Claude Deskto
 
 ---
 
-### 8. `chronica_list_threads`
+### 9. `chronica_list_threads`
 
 スレッド一覧を取得します。
 
@@ -554,7 +584,7 @@ Chronicaは9つのMCPツールを提供します。ツール名は Claude Deskto
 
 ---
 
-### 9. `chronica_get_thread_info`
+### 10. `chronica_get_thread_info`
 
 指定スレッドの詳細情報を取得します。
 
@@ -873,9 +903,9 @@ tzdata>=2025.1
 #### 完成している機能
 
 ✅ **MCPサーバー（Claude Desktop専用 STDIO）**
-- 9つのツールがすべて動作
+- 10のツールがすべて動作
   - エントリ管理: `chronica_save_entry`, `chronica_search`, `chronica_timeline`, `chronica_get_last_seen`
-  - コンテキスト生成: `chronica_compose_opening`, `chronica_summarize`
+  - コンテキスト生成: `chronica_compose_opening`, `chronica_session_tick`, `chronica_summarize`
   - スレッド管理: `chronica_create_thread`, `chronica_list_threads`, `chronica_get_thread_info`
 - STDIO版のみサポート（HTTP/SSE版廃止）
 - データベース永続化が正常に動作

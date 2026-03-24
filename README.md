@@ -35,6 +35,7 @@ Chronicaを導入すると、Claudeが次回の会話開始時に自動で記憶
 | Tool | Description |
 |------|-------------|
 | `compose_opening` | 会話開始時に時刻・経過時間・前回トピックをコンテキスト生成 |
+| `session_tick` | 各ターン用の軽量JSON（現在時刻・「何日ぶり」・直近トピック）。MCPはプッシュ不可のため毎ターン呼び出し推奨 |
 | `save_entry` | 会話内容をClaudeが自動保存（メモ・決定・タスクなど5種） |
 | `search` | タグ・種別・スレッドで記憶を検索 |
 | `timeline` | 期間指定でタイムラインを取得 |
@@ -52,6 +53,17 @@ Streamlit製の管理UIで、蓄積した記憶を整理できます。
 - 🗑️ 不要な記憶の削除（編集不可・削除のみ）
 - 📊 トークン使用量の可視化（TOP 10・使用率）
 
+## 📸 Screenshots
+
+### Curation UI — Memory management dashboard
+![Curation UI](assets/screenshots/curation_ui.png)
+
+### Claude Desktop — Automatic tool invocation
+![Claude Desktop Tools](assets/screenshots/claude_desktop_tools.png)
+
+### Claude Desktop — Memory saved and personalized response
+![Claude Desktop Memory](assets/screenshots/claude_desktop_memory.png)
+
 ---
 
 ## Architecture / アーキテクチャ
@@ -62,7 +74,7 @@ Claude Desktop (Sonnet)
         ▼
 Chronica MCP Server (Python)
   └── src/chronica/
-        ├── tools.py       # 9 MCP tools
+        ├── tools.py       # 10 MCP tools
         ├── opening.py     # Context generation
         ├── summarize.py   # Summary generation
         ├── store.py       # SQLite persistence
