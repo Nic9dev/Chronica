@@ -54,7 +54,14 @@ def register_tools(server: Server):
             types.Tool(
                 name="chronica_search",
                 description="""
-保存されたエントリを検索します。
+保存されたエントリを検索します。本文・タグ・種別を含むエントリ一覧を返します。
+
+【記憶の閲覧・一覧（save と対になる操作）】
+- 「記憶を見せて」「保存したものを一覧」「Chronicaに何が入ってる？」「最近の記録」では、
+  フィルタなしで呼び出す（引数は空オブジェクト {} または limit のみ）。
+  全スレッド横断で、保存日時の新しい順に最大100件が返る。
+- chronica_list_threads はスレッド名・件数・ID のみ。本文は含まれない。
+  本文を一覧・紹介するには必ず本ツール（search）を使う。特定スレッドだけなら thread_id を指定。
 
 【使用タイミング】
 - ユーザーが「最近の〜を振り返りたい」と言ったとき
@@ -95,7 +102,7 @@ def register_tools(server: Server):
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "最大件数"
+                            "description": "最大件数（省略時100）。一覧表示時も指定可。"
                         }
                     }
                 }
@@ -226,7 +233,10 @@ def register_tools(server: Server):
             ),
             types.Tool(
                 name="chronica_list_threads",
-                description="スレッド一覧を取得します。",
+                description="""
+スレッド一覧を取得します（スレッド名・ID・エントリ件数・日付のみ）。
+エントリの本文やタグは含まれない。記憶の中身を見せる・列挙するには chronica_search を使う（引数なしで直近の記憶一覧）。
+""",
                 inputSchema={
                     "type": "object",
                     "properties": {
