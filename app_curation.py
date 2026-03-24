@@ -9,11 +9,17 @@ Chronica - 記憶のキュレーション UI
 
 ※ チャットは Claude Desktop で完結
 """
+import json
 import sys
 from pathlib import Path
 
 # プロジェクトルートをパスに追加
 ROOT = Path(__file__).resolve().parent
+CURATION_SETTINGS_PATH = ROOT / "data" / "curation_ui_settings.json"
+
+# トークン上限のデフォルト・UI最大値（モデルコンテキストに合わせて調整可）
+DEFAULT_TOKEN_BUDGET = 500_000
+MAX_TOKEN_BUDGET_UI = 5_000_000
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -51,6 +57,26 @@ def init_store() -> Store:
     return Store()
 
 
+def load_token_budget() -> int:
+    """保存済みトークン上限を読み込む（失敗時はデフォルト）"""
+    if not CURATION_SETTINGS_PATH.exists():
+        return DEFAULT_TOKEN_BUDGET
+    try:
+        with open(CURATION_SETTINGS_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        n = int(data.get("token_budget", DEFAULT_TOKEN_BUDGET))
+        return max(1000, min(n, MAX_TOKEN_BUDGET_UI))
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return DEFAULT_TOKEN_BUDGET
+
+
+def save_token_budget(n: int) -> None:
+    """トークン上限を JSON に保存（ページ更新後も維持）"""
+    CURATION_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CURATION_SETTINGS_PATH, "w", encoding="utf-8") as f:
+        json.dump({"token_budget": int(n)}, f, indent=2, ensure_ascii=False)
+
+
 def main():
     st.set_page_config(
         page_title="Chronica - 記憶のキュレーション",
@@ -71,17 +97,28 @@ def main():
     if not all_tags:
         all_tags = sorted(set(t for e in all_entries for t in (e.get("tags") or [])))
 
-    # サイドバー（トークン上限設定）
+    # サイドバー（トークン上限設定・ファイル永続化）
+    if "curation_token_budget" not in st.session_state:
+        st.session_state.curation_token_budget = load_token_budget()
+
+    def _persist_token_budget() -> None:
+        save_token_budget(st.session_state.curation_token_budget)
+
     with st.sidebar:
         st.header("⚙️ 設定")
-        max_tokens = st.number_input(
+        st.number_input(
             "トークン上限",
             min_value=1000,
-            max_value=100000,
-            value=20000,
+            max_value=MAX_TOKEN_BUDGET_UI,
             step=1000,
-            help="使用率の基準となる上限値"
+            key="curation_token_budget",
+            on_change=_persist_token_budget,
+            help=(
+                "使用率の基準。変更は data/curation_ui_settings.json に保存され、"
+                "ページを更新しても維持されます。"
+            ),
         )
+        max_tokens = st.session_state.curation_token_budget
         st.divider()
 
     # フィルタUI

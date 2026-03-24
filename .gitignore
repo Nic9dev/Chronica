@@ -15,6 +15,7 @@ venv/
 Thumbs.db
 
 # Chronica runtime DB (commitしない)
+data/curation_ui_settings.json
 data/*.sqlite3
 data/*.db
 data/*.wal
