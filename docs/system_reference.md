@@ -1,7 +1,7 @@
 # Chronica System Reference
 
 **Version**: 0.5.0  
-**Last Updated**: 2026-03-21  
+**Last Updated**: 2026-03-26  
 **Status**: Production Ready (Claude Desktop / MCP STDIO + キュレーションUI)
 
 ---
@@ -50,6 +50,14 @@ Chronicaは、個人の記憶を管理する **Claude Desktop専用のMCP（Mode
 | `opening.py` | `get_last_seen` → `get_last_interaction` 修正、`saved_time` パースエラー対策 |
 | `run_server.py` | 起動時の cwd をプロジェクトルートに固定 |
 | 削除 | `clients/` フォルダ、`docs/` 内の一部ドキュメント（Claude Desktop実装ガイド、日本語品質戦略等） |
+
+**追記（2026-03-26）— `compose_opening` 仕様・ドキュメント整合**
+
+| 項目 | 変更内容 |
+|------|---------|
+| `opening.py` | `compose_opening_context(store, thread_id, project)`。`store.search(thread_type="project", project=project, limit=5)` で直近5件を取得。本文は渡さずタイトル（または text 先頭50文字）・`kind`・経過表現のみ。`question` / `action` は `[継続中・未解決]` に集約 |
+| `tools.py` | `chronica_compose_opening` に **`project` 引数**、**【最優先ルール】**（状況確認時は他ツールより先、`project` 必須）を追記 |
+| ドキュメント | 本リファレンス・README を上記に合わせて更新 |
 
 **v0.3.0 → v0.4.0（2026-03-19）**
 
@@ -419,52 +427,51 @@ Chronicaは10のMCPツールを提供します。ツール名は Claude Desktop 
 
 ### 5. `chronica_compose_opening`
 
-**会話開始時に必ず呼び出すこと。**  
-現在時刻・前回会話の経過時間・記憶コンテキストを取得します。
+**会話開始時・冒頭で状況・記憶確認を求められたときは、他ツールより先に呼び出すこと（ツール description の【最優先ルール】参照）。**
 
-**Claude向けの指示**:
-- 返された情報が絶対的な事実
-- 自分で時間を推測しない
-- 季節への過度な言及は避ける
-- 「Chronicaによると」等のメタ発言は避ける
-- 自然に「お久しぶりです」「前回は〜について話していましたね」等と声をかける
+**取得内容（テキスト）**:
+- **[現在状況]** … ローカル現在時刻、季節＋時間帯（参照用。過度な言及はコンテキスト内でも抑制指示）
+- **[プロジェクトの直近の流れ]** … `thread_type="project"` かつ **`project` 引数で指定したプロジェクト名**に紐づくエントリを、保存時刻の新しい順で最大5件。各行は「経過表現」「`kind`」「タイトルまたは `text` 先頭50文字相当」のみ（**本文フルテキストは含めない**）
+- **[継続中・未解決]** … 上記5件のうち `kind` が `question` または `action` のものを同形式で列挙（該当なし時は説明文のみ）
+
+**Claude向け（ツール description / 返却テキスト内の要旨）**:
+- 返却は絶対的な事実として扱う。時刻は推測しない
+- 「プロジェクトの直近の流れ」を踏まえ自然に声をかける。メタ発言（「Chronicaによると」等）は避ける
+- **記憶検索**では `thread_id` に頼らず `thread_type="project"` で横断し、必要に応えて `project` を付与。0件時は `thread_id` なしでの再検索など、返却テキストの [Claude への指示] に従う
+- 詳細な作業ログは **`chronica_search`**（`project` 指定等）で続けて取得する想定
 
 **引数**:
 ```json
-{ "thread_id": "thread-uuid" }  // オプション
+{
+  "thread_id": "thread-uuid",   // オプション（現行の opening 本文生成では記憶クエリに未使用。互換のため残置）
+  "project": "Chronica"         // 必須想定。現在の会話のプロジェクト名。不明時は chronica_list_threads 等で確認後に指定
+}
 ```
 
-**戻り値**: 構造化されたコンテキストテキスト（文字列）
+**戻り値**: 構造化されたコンテキストテキスト（文字列）。例:
 
 ```
 === Chronica Context ===
 [現在状況]
-- 現在時刻: 2026-03-18 21:00:00
+- 現在時刻: 2026-03-26 21:00:00
 - 時間帯: 春の夜
 
-[記憶コンテキスト]
-- 前回の会話: 2日前
-- 前回のトピック: Chronicaをclaude Desktop専用に移行する作業をした
+[プロジェクトの直近の流れ]
+- 2日前 [note] Glama AAA スコア達成
+- 2日前 [event] Glama v0.4.0 リリース公開
+…
+
+[継続中・未解決]
+- 2日前 [action] PR #3847 マージ待ち
+- 3日前 [question] compose_opening 設計改善の検討
 
 [Claude への指示]
-1. 上記の情報を基に、自然に声をかけてください
-2. 時間差に応じた挨拶（例: 「お久しぶりです」「こんにちは」）
-3. 前回のトピックに自然に触れる
-4. 季節や時間帯への過度な言及は避ける
-5. 「Chronicaによると」等のメタ発言は避ける
-6. ユーザーから新しい情報が得られたら chronica_save_entry で保存
-7. 保存時に「保存しました」等の確認は不要
-
-【良い例】
-「お久しぶりです！前回はChronicaのClaude Desktop移行作業をしていましたね。その後うまくいきましたか？」
-
-【悪い例】
-「こんにちは！春の夜ですね。Chronicaによると前回は2日前に会話していたようです。」
+（1〜8 の箇条書き・良い例・悪い例は実装 `opening.py` と一致）
 
 === End of Context ===
 ```
 
-**実装**: `src/chronica/opening.py` の `compose_opening_context(store, thread_id)` が生成
+**実装**: `src/chronica/opening.py` の `compose_opening_context(store, thread_id, project)` が生成。ハンドラは `compose_opening_context(store, thread_id, project)` を呼び出す。
 
 ---
 
@@ -820,19 +827,26 @@ CREATE TABLE threads (
 ### 関数シグネチャ
 
 ```python
-def compose_opening_context(store: Store, thread_id: str = None) -> str:
+def compose_opening_context(store: Store, thread_id: str = None, project: str = None) -> str:
 ```
 
-### 生成される情報
+`thread_id` はシグネチャ互換のため受け取るが、**オープニング用の「直近の流れ」取得には使用しない**。
 
-1. **現在時刻**（PCのシステムタイムゾーンで自動検出）
+### `compose_opening_context` が生成する情報
+
+1. **現在時刻**（PCのシステムタイムゾーンで `strftime`）
 2. **時間帯**（朝 / 昼 / 夕方 / 夜）
 3. **季節**（春 / 夏 / 秋 / 冬）
-4. **前回エントリの取得**
-   - `thread_id` 指定あり → `store.search(thread_id=..., limit=1)` で取得
-   - `thread_id` 指定なし → `store.get_last_interaction(thread_id=None)` で取得
-5. **経過時間の表現**（数分前 / 1時間ほど前 / N時間前 / 昨日 / N日前 / N週間前）
-6. **Claude向け指示文**（良い例・悪い例を含む）
+4. **直近エントリ（プロジェクトスコープ）**
+   - `recent_entries = store.search(thread_type="project", project=project, limit=5)`
+   - `project is None` のときは SQL 上 `project` 条件なし（全 `project` スレッド型が対象になり得る）— 運用上は **`project` を必ず渡す**ことを MCP ツール説明で要求
+5. **各行のラベル** … `entry["title"]` があれば最大50文字、なければ `text` 先頭50文字相当（改行は空白化）。`kind` と **`_recency_expression(saved_time)`**（数分前〜N週間前 / 不正時は「初回」）を付与
+6. **継続中・未解決** … 上記 `recent_entries` 内で `kind in ("question", "action")` のみ別セクション化
+7. **Claude向け指示文**（箇条書き8項目・良い例・悪い例）
+
+### `session_tick_payload`（変更なし）
+
+- 直近1件は `_memory_recency` 経由（`thread_id` 指定時はそのスレッド、未指定は `get_last_interaction`）。**`compose_opening` とはデータ取得経路が異なる**。
 
 ### tools.py からの呼び出し
 
@@ -840,7 +854,8 @@ def compose_opening_context(store: Store, thread_id: str = None) -> str:
 # chronica_compose_opening ハンドラ内
 from .opening import compose_opening_context
 
-context = compose_opening_context(store, thread_id)
+project = arguments.get("project") if arguments else None
+context = compose_opening_context(store, thread_id, project)
 return [types.TextContent(type="text", text=context)]
 ```
 
