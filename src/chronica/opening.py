@@ -2,16 +2,53 @@
 コンテキスト生成ロジック（Claude Desktop最適化版）
 """
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .store import Store
+
+
+def _recency_expression(now: datetime, saved_time_str: Optional[str]) -> str:
+    """saved_time から経過表現（日本語）を返す。不正・欠損時は「初回」。"""
+    if not saved_time_str or saved_time_str == "auto":
+        return "初回"
+    try:
+        last_time = datetime.fromisoformat(saved_time_str)
+    except (ValueError, TypeError):
+        return "初回"
+
+    time_diff = now - last_time
+    if time_diff.days == 0:
+        if time_diff.seconds < 3600:
+            return "数分前"
+        if time_diff.seconds < 7200:
+            return "1時間ほど前"
+        hours = time_diff.seconds // 3600
+        return f"{hours}時間前"
+    if time_diff.days == 1:
+        return "昨日"
+    if time_diff.days <= 7:
+        return f"{time_diff.days}日前"
+    weeks = time_diff.days // 7
+    return f"{weeks}週間前"
+
+
+def _entry_preview_label(entry: dict) -> str:
+    title = entry.get("title")
+    text = entry.get("text") or ""
+    if title:
+        label = str(title).strip()
+    else:
+        label = text[:50].replace("\n", " ").strip()
+    if len(label) > 50:
+        label = label[:50]
+    return label or "（無題）"
 
 
 def _memory_recency(
     store: Store, thread_id: Optional[str], now: datetime
 ) -> Tuple[str, Optional[str], Optional[dict]]:
     """
-    前回記憶からの経過表現とプレビュー。
+    前回記憶からの経過表現とプレビュー（session_tick 用）。
     Returns: (time_expr, last_topic_preview, last_entry_or_none)
     """
     last_entry = None
@@ -25,30 +62,9 @@ def _memory_recency(
     if not last_entry:
         return "初回", None, None
 
-    try:
-        saved_time_str = last_entry.get("saved_time")
-        if not saved_time_str or saved_time_str == "auto":
-            raise ValueError("Invalid saved_time")
-        last_time = datetime.fromisoformat(saved_time_str)
-    except (ValueError, TypeError):
+    time_expr = _recency_expression(now, last_entry.get("saved_time"))
+    if time_expr == "初回":
         return "初回", None, None
-
-    time_diff = now - last_time
-    if time_diff.days == 0:
-        if time_diff.seconds < 3600:
-            time_expr = "数分前"
-        elif time_diff.seconds < 7200:
-            time_expr = "1時間ほど前"
-        else:
-            hours = time_diff.seconds // 3600
-            time_expr = f"{hours}時間前"
-    elif time_diff.days == 1:
-        time_expr = "昨日"
-    elif time_diff.days <= 7:
-        time_expr = f"{time_diff.days}日前"
-    else:
-        weeks = time_diff.days // 7
-        time_expr = f"{weeks}週間前"
 
     last_topic = (last_entry.get("text") or "")[:120]
     return time_expr, last_topic, last_entry
@@ -91,7 +107,37 @@ def session_tick_payload(store: Store, thread_id: Optional[str] = None) -> Dict[
     }
 
 
-def compose_opening_context(store: Store, thread_id: str = None) -> str:
+def _format_flow_section(recent_entries: List[dict], now: datetime) -> str:
+    if not recent_entries:
+        return "[プロジェクトの直近の流れ]\n- （エントリーがありません）"
+    lines = ["[プロジェクトの直近の流れ]"]
+    for entry in recent_entries:
+        rec = _recency_expression(now, entry.get("saved_time"))
+        kind = entry.get("kind", "note")
+        label = _entry_preview_label(entry)
+        lines.append(f"- {rec} [{kind}] {label}")
+    return "\n".join(lines)
+
+
+def _format_unresolved_section(recent_entries: List[dict], now: datetime) -> str:
+    unresolved = [
+        e
+        for e in recent_entries
+        if e.get("kind") in ("question", "action")
+    ]
+    lines = ["[継続中・未解決]"]
+    if not unresolved:
+        lines.append("- （該当なし）")
+        return "\n".join(lines)
+    for entry in unresolved:
+        rec = _recency_expression(now, entry.get("saved_time"))
+        kind = entry.get("kind", "note")
+        label = _entry_preview_label(entry)
+        lines.append(f"- {rec} [{kind}] {label}")
+    return "\n".join(lines)
+
+
+def compose_opening_context(store: Store, thread_id: str = None, project: str = None) -> str:
     """
     会話開始時のコンテキストを生成
 
@@ -127,22 +173,9 @@ def compose_opening_context(store: Store, thread_id: str = None) -> str:
     else:
         season = "秋"
 
-    time_expr, last_text_short, last_entry = _memory_recency(store, thread_id, now)
-
-    memory_context = ""
-    if last_entry is not None and last_text_short is not None:
-        last_text = last_entry.get("text", "")[:100]
-        memory_context = f"""
-[記憶コンテキスト]
-- 前回の会話: {time_expr}
-- 前回のトピック: {last_text}
-"""
-    else:
-        time_expr = "初回"
-        memory_context = """
-[記憶コンテキスト]
-- 初めての会話です
-"""
+    recent_entries = store.search(thread_type="project", project=project, limit=5)
+    flow_block = _format_flow_section(recent_entries, now)
+    unresolved_block = _format_unresolved_section(recent_entries, now)
 
     # Claudeへの指示（簡潔に、自然な対話を促す）
     context = f"""=== Chronica Context ===
@@ -150,23 +183,25 @@ def compose_opening_context(store: Store, thread_id: str = None) -> str:
 - 現在時刻: {current_time}
 - 時間帯: {season}の{time_of_day}
 
-{memory_context}
+{flow_block}
+
+{unresolved_block}
 
 [Claude への指示]
-1. 上記の情報を基に、自然に声をかけてください
-2. 時間差に応じた挨拶（例: 「お久しぶりです」「こんにちは」）
-3. 前回のトピックに自然に触れる
-4. 季節や時間帯への過度な言及は避ける
-5. 「Chronicaによると」等のメタ発言は避ける
-6. ユーザーから新しい情報が得られたら chronica_save_entry で保存
-7. 保存時に「保存しました」等の確認は不要
-8. 2通目以降の各ユーザーメッセージでは、返答前に chronica_session_tick を呼び現在時刻・経過を同期すること
+1. 「プロジェクトの直近の流れ」を把握した上で自然に声をかける
+2. 時間差に応じた挨拶（「お久しぶりです」「こんにちは」等）
+3. 直近の流れの中で最も会話に繋げやすいトピックに自然に触れる
+4. 「Chronicaによると」等のメタ発言は避ける
+5. 記憶を探すときは thread_id を指定せず thread_type=\"project\" で横断検索する
+6. 「エントリーがありません」となった場合は thread_id なしで再検索する
+7. ユーザーから新しい情報が得られたら chronica_save_entry で保存
+8. 保存時に「保存しました」等の確認は不要
 
 【良い例】
-「お久しぶりです！前回はChronicaのプライバシーモード設計について話していましたね。その後の進捗はどうですか？」
+「お久しぶりです！Glama AAAも取れて、PR #3847のマージ待ちという状態ですね。その後動きはありましたか？」
 
 【悪い例】
-「こんにちは！{season}の{time_of_day}ですね。Chronicaによると前回は{time_expr}に会話していたようです。」
+「こんにちは！Chronicaによると2日前に会話していたようです。」
 
 === End of Context ===
 """

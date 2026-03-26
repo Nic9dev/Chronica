@@ -164,6 +164,12 @@ def register_tools(server: Server):
             types.Tool(
                 name="chronica_compose_opening",
                 description="""
+【最優先ルール】
+- 会話の冒頭で「状況確認」「記憶を確認」「現状を教えて」等の
+  要求があった場合、他のツールより先に本ツールを呼ぶこと。
+- 必ず project 引数に現在のプロジェクト名を渡してから呼ぶこと。
+- project 引数なしで他のツールを先に呼ぶことは禁止。
+
 会話開始時に必ず呼び出すこと。
 現在時刻（年月日・時分秒）、前回の会話からの経過時間、記憶コンテキストを取得します。
 
@@ -189,6 +195,12 @@ def register_tools(server: Server):
 【ユーザーへの推奨呼び出し方（vol引き継ぎ等）】
 「chronica_searchをproject『プロジェクト名』・タグ『volN』で呼んで、
 前回の作業内容を確認して」
+
+【重要】呼び出す際は必ず project 引数に現在の会話のプロジェクト名を渡すこと。
+
+例: project="Chronica"、project="Lumina v3"
+プロジェクト名が不明な場合は chronica_list_threads で確認してから呼ぶこと。
+project を渡さないと別プロジェクトの記憶が混入するため、必ず指定すること。
 """,
                 inputSchema={
                     "type": "object",
@@ -196,6 +208,10 @@ def register_tools(server: Server):
                         "thread_id": {
                             "type": "string",
                             "description": "スレッドID（指定時はそのスレッドの最後の対話を取得）"
+                        },
+                        "project": {
+                            "type": "string",
+                            "description": "現在の会話のプロジェクト名。必ず指定すること。"
                         }
                     }
                 }
@@ -440,7 +456,8 @@ chronica_compose_opening は会話開始の挨拶用。2通目以降は本ツー
             elif name == "chronica_compose_opening":
                 # スレッドIDが指定されている場合はそれを渡す
                 thread_id = arguments.get("thread_id") if arguments else None
-                context = compose_opening_context(store, thread_id)
+                project = arguments.get("project") if arguments else None
+                context = compose_opening_context(store, thread_id, project)
                 return [types.TextContent(
                     type="text",
                     text=context
