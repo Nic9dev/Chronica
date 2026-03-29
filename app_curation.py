@@ -184,26 +184,88 @@ def main():
 
     # 記憶の一覧（表示件数・ページネーション）
     st.header("記憶の一覧")
-    col_items, col_page = st.columns([1, 2])
-    with col_items:
-        items_options = [10, 25, 50, 100]
-        items_per_page = st.selectbox(
-            "表示件数",
-            items_options + ["すべて"],
-            index=0,
-            format_func=lambda x: str(x) if x != "すべて" else "すべて"
-        )
-    items_per_page_val = items_per_page if items_per_page != "すべて" else len(filtered) or 1
-    total_pages = max(1, (len(filtered) + items_per_page_val - 1) // items_per_page_val)
-    with col_page:
-        page = st.number_input("ページ", min_value=1, max_value=total_pages, value=1, step=1)
-    start = (page - 1) * items_per_page_val
-    display_entries = filtered[start : start + items_per_page_val]
-    st.caption(f"表示: {len(display_entries)} 件 / 全 {len(filtered)} 件")
 
-    # 削除対象（確認用）
     if "pending_delete" not in st.session_state:
         st.session_state.pending_delete = None
+    if "selected_ids" not in st.session_state:
+        st.session_state.selected_ids = set()
+    if "batch_confirm" not in st.session_state:
+        st.session_state.batch_confirm = False
+
+    items_options = [10, 25, 50, 100]
+    items_plus_all = items_options + ["すべて"]
+    items_per_page = st.session_state.get("curation_ipp", items_options[0])
+    if items_per_page not in items_plus_all:
+        items_per_page = items_options[0]
+    items_per_page_val = items_per_page if items_per_page != "すべて" else len(filtered) or 1
+    total_pages = max(1, (len(filtered) + items_per_page_val - 1) // items_per_page_val)
+    if "curation_pg" not in st.session_state:
+        st.session_state.curation_pg = 1
+    st.session_state.curation_pg = min(max(1, int(st.session_state.curation_pg)), total_pages)
+    page = st.session_state.curation_pg
+    start = (page - 1) * items_per_page_val
+    display_entries = filtered[start : start + items_per_page_val]
+
+    # 全選択 / 全解除ボタン
+    col_sel_all, col_sel_none, col_batch_del = st.columns([1, 1, 3])
+    display_ids = [e.get("entry_id", "") for e in display_entries]
+
+    with col_sel_all:
+        if st.button("☑️ 全選択"):
+            st.session_state.selected_ids.update(display_ids)
+            for eid in display_ids:
+                if eid:
+                    st.session_state[f"chk_{eid}"] = True
+            st.rerun()
+    with col_sel_none:
+        if st.button("⬜ 全解除"):
+            st.session_state.selected_ids.difference_update(display_ids)
+            for eid in display_ids:
+                if eid:
+                    st.session_state[f"chk_{eid}"] = False
+            st.rerun()
+    with col_batch_del:
+        n_selected = len(st.session_state.selected_ids)
+        if n_selected > 0:
+            if st.button(f"🗑️ 選択した {n_selected} 件を削除", type="primary"):
+                st.session_state.batch_confirm = True
+                st.rerun()
+        else:
+            st.button("🗑️ 削除（記憶を選択してください）", disabled=True)
+
+    if st.session_state.batch_confirm:
+        n = len(st.session_state.selected_ids)
+        st.warning(f"⚠️ {n} 件の記憶を削除しますか？この操作は取り消せません。")
+        bc1, bc2 = st.columns(2)
+        with bc1:
+            if st.button("✓ まとめて削除する", type="primary", key="batch_confirm_btn"):
+                ids_removed = list(st.session_state.selected_ids)
+                deleted = store.delete_entries(ids_removed)
+                st.session_state.selected_ids.clear()
+                for eid in ids_removed:
+                    if eid:
+                        st.session_state.pop(f"chk_{eid}", None)
+                st.session_state.batch_confirm = False
+                st.success(f"{deleted} 件削除しました")
+                st.rerun()
+        with bc2:
+            if st.button("✕ キャンセル", key="batch_cancel_btn"):
+                st.session_state.batch_confirm = False
+                st.rerun()
+
+    col_items, col_page = st.columns([1, 2])
+    with col_items:
+        st.selectbox(
+            "表示件数",
+            items_plus_all,
+            index=0,
+            key="curation_ipp",
+            format_func=lambda x: str(x) if x != "すべて" else "すべて"
+        )
+    with col_page:
+        st.number_input("ページ", min_value=1, max_value=total_pages, step=1, key="curation_pg")
+
+    st.caption(f"表示: {len(display_entries)} 件 / 全 {len(filtered)} 件")
 
     for entry in display_entries:
         entry_id = entry.get("entry_id", "")
@@ -218,6 +280,21 @@ def main():
         text_safe = html.escape(text_preview)
 
         with st.container():
+            # チェックボックス（バッチ削除用）
+            # key 付きウィジェットの状態が表示を支配するため、全選択/全解除では chk_* も同期すること
+            chk_key = f"chk_{entry_id}"
+            if chk_key not in st.session_state:
+                st.session_state[chk_key] = entry_id in st.session_state.selected_ids
+            checked = st.checkbox(
+                f"選択（ID: {entry_id[:8]}...）",
+                key=chk_key,
+                label_visibility="collapsed"
+            )
+            if checked:
+                st.session_state.selected_ids.add(entry_id)
+            elif entry_id in st.session_state.selected_ids:
+                st.session_state.selected_ids.discard(entry_id)
+
             # カード風スタイル
             st.markdown(f"""
 <div style="
