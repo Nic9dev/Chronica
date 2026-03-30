@@ -84,8 +84,201 @@ def main():
         layout="wide"
     )
 
-    st.title("📚 Chronica - 記憶のキュレーション")
-    st.caption("記憶の選別・冗長確認・削除（編集不可）")
+    st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+/* ベース */
+html, body, [class*="css"] {
+    font-family: 'JetBrains Mono', monospace !important;
+    background-color: #0a0a0a !important;
+    color: #00ff41 !important;
+}
+
+/* スキャンライン効果 */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 255, 65, 0.015) 2px,
+        rgba(0, 255, 65, 0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* サイドバー */
+section[data-testid="stSidebar"] {
+    background-color: #0d0d0d !important;
+    border-right: 1px solid #00ff41 !important;
+}
+
+/* メインエリア */
+.main .block-container {
+    background-color: #0a0a0a !important;
+    padding-top: 2rem;
+}
+
+/* ヘッダー */
+h1, h2, h3 {
+    color: #00ff41 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5) !important;
+    letter-spacing: 2px !important;
+}
+
+/* キャプション */
+[data-testid="stCaption"], .stCaption {
+    color: #005c1a !important;
+}
+
+/* ボタン */
+.stButton > button {
+    font-family: 'JetBrains Mono', monospace !important;
+    background-color: transparent !important;
+    color: #00ff41 !important;
+    border: 1px solid #00ff41 !important;
+    border-radius: 0 !important;
+    letter-spacing: 1px !important;
+    transition: all 0.2s !important;
+    text-transform: uppercase !important;
+}
+.stButton > button:hover {
+    background-color: #00ff41 !important;
+    color: #0a0a0a !important;
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.6) !important;
+}
+.stButton > button[kind="primary"] {
+    border-color: #ff4141 !important;
+    color: #ff4141 !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background-color: #ff4141 !important;
+    color: #0a0a0a !important;
+    box-shadow: 0 0 15px rgba(255, 65, 65, 0.6) !important;
+}
+
+/* セレクトボックス・インプット */
+.stSelectbox > div > div,
+.stMultiSelect > div > div,
+.stNumberInput > div > div > input {
+    font-family: 'JetBrains Mono', monospace !important;
+    background-color: #0d0d0d !important;
+    color: #00ff41 !important;
+    border: 1px solid #005c1a !important;
+    border-radius: 0 !important;
+}
+
+/* チェックボックス */
+.stCheckbox label {
+    color: #00ff41 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* メトリクス */
+[data-testid="stMetricValue"] {
+    color: #00ff41 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.4) !important;
+}
+[data-testid="stMetricLabel"] {
+    color: #005c1a !important;
+    font-size: 1rem !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    letter-spacing: 1px !important;
+}
+
+/* プログレスバー — 塗りは Base Web のバー内部のみ（ラベル行に緑が波及しない） */
+.stProgress [data-baseweb="progress-bar"] > div > div {
+    background-color: #0d1a0d !important;
+}
+.stProgress [data-baseweb="progress-bar"] > div > div > div {
+    background-color: #00ff41 !important;
+}
+
+/* info / warning / success */
+.stAlert {
+    border-radius: 0 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* divider */
+hr {
+    border-color: #001a08 !important;
+}
+
+/* expander */
+.streamlit-expanderHeader {
+    font-family: 'JetBrains Mono', monospace !important;
+    color: #00ff41 !important;
+    background-color: #0d0d0d !important;
+    border: 1px solid #005c1a !important;
+}
+
+/* ブリンクカーソルアニメ */
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+.cursor-blink::after {
+    content: '█';
+    animation: blink 1s infinite;
+    color: #00ff41;
+}
+
+/* グローアニメ */
+@keyframes glow-pulse {
+    0%, 100% { text-shadow: 0 0 10px rgba(0,255,65,0.5); }
+    50% { text-shadow: 0 0 20px rgba(0,255,65,0.9), 0 0 40px rgba(0,255,65,0.3); }
+}
+
+/* プログレス上のテキスト（st.progress の text=）— 黒背景で視認性 */
+.stProgress > div:first-child {
+    background-color: #0a0a0a !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+.stProgress > div:first-child,
+.stProgress > div:first-child p,
+.stProgress > div:first-child span,
+.stProgress > div:first-child strong,
+.stProgress > div:first-child code,
+.stProgress > div:first-child [data-testid="stMarkdownContainer"] {
+    color: #00ff41 !important;
+    font-size: 1rem !important;
+    letter-spacing: 1px !important;
+    text-shadow: 0 0 6px rgba(0, 255, 65, 0.4) !important;
+}
+
+/* ラベルテキスト全般（種別・タグ・並び順・表示件数・ページ等） */
+label, .stSelectbox label, .stMultiSelect label,
+.stNumberInput label, [data-testid="stWidgetLabel"] {
+    color: #005c1a !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.82em !important;
+    letter-spacing: 1px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+    st.markdown("""
+<div style="border: 1px solid #00ff41; padding: 20px; margin-bottom: 20px;
+     box-shadow: 0 0 20px rgba(0,255,65,0.2); background: #0d0d0d;">
+    <div style="color: #005c1a; font-size: 0.8em; margin-bottom: 4px;">
+        CHRONICA MEMORY SYSTEM v0.5.0 // CURATION INTERFACE
+    </div>
+    <div style="color: #00ff41; font-size: 1.8em; font-weight: 700;
+         text-shadow: 0 0 15px rgba(0,255,65,0.6); letter-spacing: 3px;">
+        &gt;_ CHRONICA
+    </div>
+    <div style="color: #005c1a; font-size: 0.85em; margin-top: 6px;">
+        [ MEMORY CURATION MODE ] // DELETE ONLY — NO EDIT ACCESS
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
     store = init_store()
 
@@ -122,7 +315,8 @@ def main():
         st.divider()
 
     # フィルタUI
-    st.header("フィルタ")
+    st.markdown('<p style="color:#005c1a; font-size:0.8em; letter-spacing:2px; margin-bottom:4px;">──────────────────────────────</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#00ff41; font-size:1.1em; font-weight:700; letter-spacing:2px;">&gt;_ FILTER</p>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -153,7 +347,8 @@ def main():
         filtered = sorted(filtered, key=lambda e: e.get("saved_time", ""), reverse=True)
 
     # トークン使用状況
-    st.header("トークン使用状況")
+    st.markdown('<p style="color:#005c1a; font-size:0.8em; letter-spacing:2px; margin-bottom:4px;">──────────────────────────────</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#00ff41; font-size:1.1em; font-weight:700; letter-spacing:2px;">&gt;_ TOKEN USAGE</p>', unsafe_allow_html=True)
     total_tokens = sum(count_tokens(e.get("text", "")) for e in all_entries)
     progress = min(total_tokens / max_tokens, 1.0)
 
@@ -168,7 +363,7 @@ def main():
     entries_with_tokens.sort(key=lambda x: x[1], reverse=True)
     top_10 = entries_with_tokens[:10]
 
-    with st.expander("トークン数の多い記憶 TOP 10"):
+    with st.expander("[ TOP 10 ] HIGH TOKEN ENTRIES"):
         if not top_10:
             st.caption("（該当する記憶がありません）")
         else:
@@ -183,7 +378,8 @@ def main():
     st.divider()
 
     # 記憶の一覧（表示件数・ページネーション）
-    st.header("記憶の一覧")
+    st.markdown('<p style="color:#005c1a; font-size:0.8em; letter-spacing:2px; margin-bottom:4px;">──────────────────────────────</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#00ff41; font-size:1.1em; font-weight:700; letter-spacing:2px;">&gt;_ MEMORY LOG</p>', unsafe_allow_html=True)
 
     if "pending_delete" not in st.session_state:
         st.session_state.pending_delete = None
@@ -295,24 +491,41 @@ def main():
             elif entry_id in st.session_state.selected_ids:
                 st.session_state.selected_ids.discard(entry_id)
 
-            # カード風スタイル
+            # カード風スタイル（ターミナル / CHRONICA TERMINAL）
             st.markdown(f"""
 <div style="
-    border: 1px solid #333;
-    border-radius: 8px;
+    border: 1px solid #005c1a;
+    border-left: 3px solid #00ff41;
+    border-radius: 0;
     padding: 16px;
     margin-bottom: 8px;
-    background-color: #1a1a1a;
+    background-color: #0d0d0d;
+    box-shadow: inset 0 0 30px rgba(0,255,65,0.03),
+                -3px 0 15px rgba(0,255,65,0.1);
+    transition: all 0.2s;
 ">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <div>
-            <span style="font-size: 1.1em;">{emoji} {kind}</span>
-            <span style="color: #888; margin-left: 10px;">{saved_time}</span>
+            <span style="color: #00ff41; font-size: 0.9em; letter-spacing: 1px; font-weight: 700;">
+                [{kind.upper()}] {emoji}
+            </span>
+            <span style="color: #005c1a; margin-left: 12px; font-size: 0.8em;">
+                {saved_time}
+            </span>
         </div>
+        <span style="color: #003311; font-size: 0.75em;">
+            &gt; {entry_id[:8]}...
+        </span>
     </div>
-    <div style="margin: 8px 0; color: #aaa;">{tags_safe}</div>
-    <div style="margin: 8px 0;">{text_safe}</div>
-    <div style="color: #888; font-size: 0.9em;">💬 {tokens:,} tokens | 🆔 {entry_id[:8]}...</div>
+    <div style="color: #004d17; font-size: 0.82em; margin-bottom: 8px; letter-spacing: 0.5px;">
+        {tags_safe}
+    </div>
+    <div style="color: #a0ffa0; font-size: 0.92em; margin-bottom: 10px; line-height: 1.5;">
+        {text_safe}
+    </div>
+    <div style="color: #003311; font-size: 0.78em; border-top: 1px solid #001a08; padding-top: 6px;">
+        TOKENS: {tokens:,} &nbsp;|&nbsp; ID: {entry_id[:8]}...
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
